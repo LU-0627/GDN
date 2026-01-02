@@ -1,0 +1,24 @@
+# GDN CUDA 13 Compatible Requirements
+# Python >= 3.10
+
+# 1. 核心 PyTorch (CUDA 13 版)
+--find-links https://download.pytorch.org/whl/torch_stable.html
+torch==2.1.0+cu118
+torchvision==0.16.0+cu118
+
+# 2. PyTorch Geometric 相关依赖 (需与 torch-2.1.0+cu131 对应)
+--find-links https://data.pyg.org/whl/torch-2.1.0+cu118.html
+torch-scatter
+torch-sparse
+torch-cluster
+torch-spline-conv
+torch-geometric==2.4.0
+
+# 3. 数据处理
+numpy<2
+pandas>=1.0.0
+scipy>=1.4.0
+
+# 4. 机器学习与可视化
+scikit-learn>=0.22.0
+matplotlib>=3.1.0
