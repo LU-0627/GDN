@@ -1,0 +1,70 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "🔍 调试GDN训练 (完整)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-dataset",
+                "swat",
+                "-epoch",
+                "5",
+                "-batch",
+                "128",
+                "--debug"
+            ],
+            "justMyCode": false,
+            "env": {
+                "PYTHONUNBUFFERED": "1"
+            }
+        },
+        {
+            "name": "🐛 调试GDN (小数据集)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-dataset",
+                "swat",
+                "-epoch",
+                "2",
+                "-batch",
+                "32",
+                "--debug",
+                "--debug_batch",
+                "1"
+            ],
+            "justMyCode": false,
+            "env": {
+                "PYTHONUNBUFFERED": "1"
+            }
+        },
+        {
+            "name": "⚡ 快速调试 (1个epoch)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-dataset",
+                "swat",
+                "-epoch",
+                "1",
+                "-batch",
+                "32",
+                "--debug",
+                "--debug_batch",
+                "1",
+                "--debug_forward"
+            ],
+            "justMyCode": false,
+            "env": {
+                "PYTHONUNBUFFERED": "1"
+            }
+        }
+    ]
+}
