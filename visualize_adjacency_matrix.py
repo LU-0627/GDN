@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-生成GDN模型Top-K有向图的邻接矩阵可视化
+生成Top-K有向图的邻接矩阵并可视化
+邻接矩阵A[i,j]表示:节点i选择节点j作为Top-K邻居时的相似度值
 """
 
 import sys
@@ -19,9 +20,9 @@ plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']
 plt.rcParams['axes.unicode_minus'] = False
 
 
-def create_adjacency_matrix(model_path, node_num=27, dim=64, input_dim=15, topk=20):
+def create_topk_adjacency_matrix(model_path, node_num=27, dim=64, input_dim=15, topk=20):
     """
-    创建基于Top-K邻居的有向图邻接矩阵
+    创建Top-K有向图的邻接矩阵
     
     Args:
         model_path: 模型路径
@@ -31,7 +32,7 @@ def create_adjacency_matrix(model_path, node_num=27, dim=64, input_dim=15, topk=
         topk: K值
         
     Returns:
-        adj_matrix: 邻接矩阵 [node_num, node_num]
+        adjacency_matrix: 邻接矩阵 [node_num, node_num]
         topk_indices: Top-K索引
         topk_values: Top-K相似度值
     """
@@ -57,7 +58,7 @@ def create_adjacency_matrix(model_path, node_num=27, dim=64, input_dim=15, topk=
     print("✓ 模型加载成功")
     
     with torch.no_grad():
-        # 计算余弦相似度
+        # 计算余弦相似度矩阵
         embeddings = model.embedding.weight
         weights = embeddings.view(node_num, -1)
         cos_ji_mat = torch.matmul(weights, weights.T)
@@ -67,229 +68,244 @@ def create_adjacency_matrix(model_path, node_num=27, dim=64, input_dim=15, topk=
         )
         cos_ji_mat = cos_ji_mat / normed_mat
         
+        print(f"\n📊 完整余弦相似度矩阵: {cos_ji_mat.shape}")
+        
         # Top-K选择
         topk_values, topk_indices = torch.topk(cos_ji_mat, k=topk, dim=-1)
-    
-    print(f"\n🔄 构建邻接矩阵...")
-    print(f"  - 矩阵大小: [{node_num}, {node_num}]")
-    print(f"  - Top-K: {topk}")
+        print(f"🎯 Top-K选择: K={topk}")
+        print(f"   - Top-K索引矩阵: {topk_indices.shape}")
+        print(f"   - Top-K相似度矩阵: {topk_values.shape}")
     
     # 转换为numpy
     topk_indices_np = topk_indices.cpu().numpy()
     topk_values_np = topk_values.cpu().numpy()
     
-    # 创建邻接矩阵
-    # adj_matrix[i][j] = 从节点i到节点j的边的权重(如果存在)
-    adj_matrix = np.zeros((node_num, node_num))
+    # 构建邻接矩阵
+    print(f"\n🔄 构建邻接矩阵...")
+    adjacency_matrix = np.zeros((node_num, node_num))
     
-    for source in range(node_num):
-        neighbors = topk_indices_np[source]
-        similarities = topk_values_np[source]
+    for i in range(node_num):
+        neighbors = topk_indices_np[i]
+        similarities = topk_values_np[i]
         
         for neighbor, sim in zip(neighbors, similarities):
-            # 排除自环(可选)
-            # if neighbor != source:
-            adj_matrix[source, neighbor] = sim
+            # A[i, j] = 节点i选择节点j的相似度
+            adjacency_matrix[i, neighbor] = sim
     
-    print(f"✓ 邻接矩阵构建完成")
+    print(f"✓ 邻接矩阵构建完成: {adjacency_matrix.shape}")
     
     # 统计信息
-    non_zero = np.count_nonzero(adj_matrix)
-    total = node_num * node_num
-    sparsity = 1 - (non_zero / total)
+    print(f"\n📈 邻接矩阵统计:")
+    print(f"   - 非零元素数: {np.count_nonzero(adjacency_matrix)}")
+    print(f"   - 稀疏度: {1 - np.count_nonzero(adjacency_matrix) / (node_num * node_num):.2%}")
+    print(f"   - 最小值: {adjacency_matrix.min():.6f}")
+    print(f"   - 最大值: {adjacency_matrix.max():.6f}")
+    print(f"   - 平均值(非零): {adjacency_matrix[adjacency_matrix > 0].mean():.6f}")
     
-    print(f"\n📊 邻接矩阵统计:")
-    print(f"  - 非零元素: {non_zero}/{total} ({non_zero/total*100:.1f}%)")
-    print(f"  - 稀疏度: {sparsity*100:.1f}%")
-    print(f"  - 权重范围: [{adj_matrix[adj_matrix>0].min():.4f}, {adj_matrix.max():.4f}]")
-    print(f"  - 平均权重(非零): {adj_matrix[adj_matrix>0].mean():.4f}")
+    # 检查对称性
+    is_symmetric = np.allclose(adjacency_matrix, adjacency_matrix.T)
+    print(f"   - 是否对称: {'是' if is_symmetric else '否(有向图)'}")
     
-    # 对角线统计(自环)
-    diagonal = np.diag(adj_matrix)
-    print(f"\n  - 对角线(自环):")
-    print(f"    最小值: {diagonal.min():.4f}")
-    print(f"    最大值: {diagonal.max():.4f}")
-    print(f"    平均值: {diagonal.mean():.4f}")
+    # 对角线(自己到自己)
+    diagonal = np.diag(adjacency_matrix)
+    print(f"   - 对角线值范围: [{diagonal.min():.4f}, {diagonal.max():.4f}]")
     
-    return adj_matrix, topk_indices_np, topk_values_np
+    return adjacency_matrix, topk_indices_np, topk_values_np
 
 
-def visualize_adjacency_matrix(adj_matrix, save_path='adjacency_matrix.png',
-                               show_values=False, vmin=None, vmax=None):
+def visualize_adjacency_matrix(adjacency_matrix, save_path='topk_adjacency_matrix.png'):
     """
-    可视化邻接矩阵热力图
+    可视化邻接矩阵
     
     Args:
-        adj_matrix: 邻接矩阵
+        adjacency_matrix: 邻接矩阵
         save_path: 保存路径
-        show_values: 是否显示数值
-        vmin, vmax: 颜色范围
     """
     print(f"\n🎨 生成邻接矩阵热力图...")
     
-    fig, ax = plt.subplots(figsize=(14, 12))
+    fig, axes = plt.subplots(1, 2, figsize=(20, 9))
     
-    # 创建热力图
-    sns.heatmap(
-        adj_matrix,
-        cmap='YlOrRd',  # 黄-橙-红配色
-        center=None,
-        square=True,
-        linewidths=0.1,
-        linecolor='lightgray',
-        cbar_kws={"label": "相似度权重", "shrink": 0.8},
-        vmin=vmin if vmin is not None else 0,
-        vmax=vmax if vmax is not None else 1,
-        annot=show_values if adj_matrix.shape[0] <= 15 else False,
-        fmt='.2f' if show_values else '',
-        annot_kws={'fontsize': 6} if show_values else None,
-        xticklabels=range(adj_matrix.shape[0]),
-        yticklabels=range(adj_matrix.shape[0]),
-        ax=ax
-    )
+    # 子图1: 完整邻接矩阵
+    ax1 = axes[0]
+    im1 = ax1.imshow(adjacency_matrix, cmap='RdYlBu_r', aspect='auto',
+                     interpolation='nearest', vmin=-1, vmax=1)
     
-    ax.set_title('Top-K有向图邻接矩阵\n(行=源节点, 列=目标节点)', 
+    ax1.set_title('Top-K有向图邻接矩阵\nA[i,j] = 节点i选择节点j的相似度',
+                 fontsize=14, fontweight='bold', pad=15)
+    ax1.set_xlabel('目标节点 j (被选择)', fontsize=12)
+    ax1.set_ylabel('源节点 i (选择者)', fontsize=12)
+    
+    # 设置刻度
+    node_num = adjacency_matrix.shape[0]
+    ax1.set_xticks(range(node_num))
+    ax1.set_yticks(range(node_num))
+    ax1.set_xticklabels(range(node_num), fontsize=9)
+    ax1.set_yticklabels(range(node_num), fontsize=9)
+    
+    # 添加网格
+    ax1.set_xticks(np.arange(node_num) - 0.5, minor=True)
+    ax1.set_yticks(np.arange(node_num) - 0.5, minor=True)
+    ax1.grid(which='minor', color='gray', linestyle='-', linewidth=0.5, alpha=0.3)
+    
+    # 颜色条
+    cbar1 = plt.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
+    cbar1.set_label('相似度', fontsize=11)
+    
+    # 子图2: 使用seaborn绘制,更清晰
+    ax2 = axes[1]
+    sns.heatmap(adjacency_matrix, ax=ax2, cmap='RdYlBu_r', center=0,
+                square=True, linewidths=0.5, linecolor='lightgray',
+                cbar_kws={"shrink": 0.8, "label": "相似度"},
+                vmin=-1, vmax=1,
+                xticklabels=True, yticklabels=True)
+    
+    ax2.set_title('Top-K有向图邻接矩阵(带网格)\n对角线 = 自环(相似度=1.0)',
+                 fontsize=14, fontweight='bold', pad=15)
+    ax2.set_xlabel('目标节点 j', fontsize=12)
+    ax2.set_ylabel('源节点 i', fontsize=12)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    print(f"✓ 可视化已保存: {save_path}")
+    
+    plt.close()
+
+
+def visualize_binary_adjacency(adjacency_matrix, save_path='topk_adjacency_binary.png'):
+    """
+    可视化二值化邻接矩阵(只显示是否有边)
+    
+    Args:
+        adjacency_matrix: 邻接矩阵
+        save_path: 保存路径
+    """
+    print(f"\n🎨 生成二值化邻接矩阵...")
+    
+    # 创建二值矩阵(非零 = 1, 零 = 0)
+    binary_adj = (adjacency_matrix != 0).astype(int)
+    
+    fig, ax = plt.subplots(figsize=(12, 11))
+    
+    im = ax.imshow(binary_adj, cmap='binary', aspect='auto', vmin=0, vmax=1)
+    
+    ax.set_title('Top-K有向图二值邻接矩阵\n黑色 = 有边, 白色 = 无边',
                 fontsize=14, fontweight='bold', pad=15)
-    ax.set_xlabel('目标节点 (To)', fontsize=12)
-    ax.set_ylabel('源节点 (From)', fontsize=12)
+    ax.set_xlabel('目标节点 j', fontsize=12)
+    ax.set_ylabel('源节点 i', fontsize=12)
+    
+    # 设置刻度
+    node_num = binary_adj.shape[0]
+    ax.set_xticks(range(node_num))
+    ax.set_yticks(range(node_num))
+    ax.set_xticklabels(range(node_num), fontsize=9)
+    ax.set_yticklabels(range(node_num), fontsize=9)
+    
+    # 网格
+    ax.set_xticks(np.arange(node_num) - 0.5, minor=True)
+    ax.set_yticks(np.arange(node_num) - 0.5, minor=True)
+    ax.grid(which='minor', color='red', linestyle='-', linewidth=0.5, alpha=0.5)
     
     plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    print(f"✓ 热力图已保存: {save_path}")
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    print(f"✓ 二值化邻接矩阵已保存: {save_path}")
     
     plt.close()
 
 
-def visualize_adjacency_comparison(adj_matrix, save_path='adjacency_comparison.png'):
-    """
-    创建多视图对比可视化
-    """
-    print(f"\n🎨 生成对比可视化...")
-    
-    fig = plt.figure(figsize=(20, 6))
-    
-    # 1. 完整邻接矩阵
-    ax1 = plt.subplot(1, 4, 1)
-    sns.heatmap(adj_matrix, cmap='YlOrRd', square=True, 
-                cbar_kws={"label": "权重"}, ax=ax1,
-                xticklabels=5, yticklabels=5)
-    ax1.set_title('完整邻接矩阵', fontsize=12, fontweight='bold')
-    ax1.set_xlabel('目标节点')
-    ax1.set_ylabel('源节点')
-    
-    # 2. 二值化邻接矩阵(有边=1,无边=0)
-    ax2 = plt.subplot(1, 4, 2)
-    binary_adj = (adj_matrix > 0).astype(int)
-    sns.heatmap(binary_adj, cmap='Greys', square=True,
-                cbar_kws={"label": "连接"}, ax=ax2,
-                xticklabels=5, yticklabels=5,
-                vmin=0, vmax=1)
-    ax2.set_title('连接模式\n(1=有连接, 0=无连接)', fontsize=12, fontweight='bold')
-    ax2.set_xlabel('目标节点')
-    ax2.set_ylabel('源节点')
-    
-    # 3. 出度分布
-    ax3 = plt.subplot(1, 4, 3)
-    out_degree = (adj_matrix > 0).sum(axis=1)
-    bars = ax3.bar(range(len(out_degree)), out_degree, color='steelblue', alpha=0.7)
-    ax3.set_xlabel('节点', fontsize=11)
-    ax3.set_ylabel('出度', fontsize=11)
-    ax3.set_title('每个节点的出度', fontsize=12, fontweight='bold')
-    ax3.grid(True, alpha=0.3, axis='y')
-    
-    # 4. 入度分布
-    ax4 = plt.subplot(1, 4, 4)
-    in_degree = (adj_matrix > 0).sum(axis=0)
-    bars = ax4.bar(range(len(in_degree)), in_degree, color='coral', alpha=0.7)
-    ax4.set_xlabel('节点', fontsize=11)
-    ax4.set_ylabel('入度', fontsize=11)
-    ax4.set_title('每个节点的入度', fontsize=12, fontweight='bold')
-    ax4.grid(True, alpha=0.3, axis='y')
-    
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    print(f"✓ 对比图已保存: {save_path}")
-    
-    plt.close()
-
-
-def analyze_adjacency_structure(adj_matrix):
-    """分析邻接矩阵的结构特性"""
+def analyze_adjacency_matrix(adjacency_matrix):
+    """分析邻接矩阵的性质"""
     
     print("\n" + "="*80)
-    print("邻接矩阵结构分析")
+    print("邻接矩阵详细分析")
     print("="*80)
     
-    node_num = adj_matrix.shape[0]
+    node_num = adjacency_matrix.shape[0]
     
-    # 1. 度数分析
-    out_degree = (adj_matrix > 0).sum(axis=1)  # 每行非零元素=出度
-    in_degree = (adj_matrix > 0).sum(axis=0)   # 每列非零元素=入度
+    # 1. 出度和入度
+    print("\n1️⃣ 节点度数分析:")
+    out_degree = (adjacency_matrix != 0).sum(axis=1)  # 行和
+    in_degree = (adjacency_matrix != 0).sum(axis=0)   # 列和
     
-    print("\n【出度统计】(每个节点指向多少个其他节点)")
-    print(f"  最小出度: {out_degree.min():.0f} (节点{out_degree.argmin()})")
-    print(f"  最大出度: {out_degree.max():.0f} (节点{out_degree.argmax()})")
-    print(f"  平均出度: {out_degree.mean():.2f}")
-    print(f"  标准差: {out_degree.std():.2f}")
+    print(f"\n出度统计(每个节点选择的邻居数):")
+    print(f"   - 平均出度: {out_degree.mean():.2f}")
+    print(f"   - 最小出度: {out_degree.min()} (节点{out_degree.argmin()})")
+    print(f"   - 最大出度: {out_degree.max()} (节点{out_degree.argmax()})")
     
-    print("\n【入度统计】(每个节点被多少个其他节点指向)")
-    print(f"  最小入度: {in_degree.min():.0f} (节点{in_degree.argmin()})")
-    print(f"  最大入度: {in_degree.max():.0f} (节点{in_degree.argmax()})")
-    print(f"  平均入度: {in_degree.mean():.2f}")
-    print(f"  标准差: {in_degree.std():.2f}")
+    print(f"\n入度统计(每个节点被其他节点选择的次数):")
+    print(f"   - 平均入度: {in_degree.mean():.2f}")
+    print(f"   - 最小入度: {in_degree.min()} (节点{in_degree.argmin()})")
+    print(f"   - 最大入度: {in_degree.max()} (节点{in_degree.argmax()})")
     
-    # 2. 对称性分析(双向连接)
-    print("\n【对称性分析】")
-    symmetric_edges = 0
-    total_edges = np.count_nonzero(adj_matrix)
+    # Top-10 入度最高的节点
+    print(f"\n入度最高的10个节点(最受欢迎):")
+    top_in_degree = np.argsort(in_degree)[::-1][:10]
+    for rank, node in enumerate(top_in_degree, 1):
+        print(f"   {rank:2d}. 节点{node:2d}: 入度={in_degree[node]}, 出度={out_degree[node]}")
+    
+    # 2. 对称性分析(找出双向连接)
+    print("\n2️⃣ 双向连接分析:")
+    
+    bidirectional_count = 0
+    bidirectional_pairs = []
     
     for i in range(node_num):
         for j in range(i+1, node_num):
-            if adj_matrix[i, j] > 0 and adj_matrix[j, i] > 0:
-                symmetric_edges += 2  # 双向算2条边
+            if adjacency_matrix[i, j] != 0 and adjacency_matrix[j, i] != 0:
+                bidirectional_count += 1
+                weight_avg = (adjacency_matrix[i, j] + adjacency_matrix[j, i]) / 2
+                bidirectional_pairs.append((i, j, weight_avg))
     
-    print(f"  双向边: {symmetric_edges}/{total_edges} ({symmetric_edges/total_edges*100:.1f}%)")
-    print(f"  单向边: {total_edges - symmetric_edges}/{total_edges} ({(total_edges - symmetric_edges)/total_edges*100:.1f}%)")
+    total_edges = np.count_nonzero(adjacency_matrix)
+    bidirectional_edges = bidirectional_count * 2
     
-    # 3. 最强连接
-    print("\n【最强的10条边】")
-    # 排除对角线
-    adj_no_diag = adj_matrix.copy()
-    np.fill_diagonal(adj_no_diag, 0)
+    print(f"   - 总边数: {total_edges}")
+    print(f"   - 双向边数: {bidirectional_edges}")
+    print(f"   - 双向连接对数: {bidirectional_count}")
+    print(f"   - 双向边占比: {bidirectional_edges / total_edges * 100:.1f}%")
     
-    flat_indices = np.argsort(adj_no_diag.flatten())[::-1][:10]
-    positions = np.unravel_index(flat_indices, adj_no_diag.shape)
+    # 3. 自环分析
+    print("\n3️⃣ 自环分析:")
+    self_loops = np.diag(adjacency_matrix)
+    self_loop_count = np.count_nonzero(self_loops)
     
-    for rank, (i, j) in enumerate(zip(positions[0], positions[1]), 1):
-        weight = adj_matrix[i, j]
-        # 检查是否双向
-        is_bidirectional = adj_matrix[j, i] > 0
-        print(f"  {rank:2d}. 节点{i:2d} → 节点{j:2d}  |  权重: {weight:.6f}  "
-              f"{'(双向)' if is_bidirectional else ''}")
+    print(f"   - 有自环的节点数: {self_loop_count}/{node_num}")
+    print(f"   - 自环相似度: 全部={'是' if np.all(np.abs(self_loops - 1.0) < 1e-6) else '否'} = 1.0")
     
-    # 4. Hub节点(高出度或高入度)
-    print("\n【Hub节点分析】")
-    print("  高出度节点(Top 5):")
-    top_out = np.argsort(out_degree)[::-1][:5]
-    for rank, node in enumerate(top_out, 1):
-        print(f"    {rank}. 节点{node:2d}: 出度={out_degree[node]:.0f}")
+    # 4. 连通性
+    print("\n4️⃣ 图连通性(简单分析):")
+    binary_adj = (adjacency_matrix != 0).astype(int)
     
-    print("  高入度节点(Top 5):")
-    top_in = np.argsort(in_degree)[::-1][:5]
-    for rank, node in enumerate(top_in, 1):
-        print(f"    {rank}. 节点{node:2d}: 入度={in_degree[node]:.0f}")
+    # 可达性(简单检查是否有孤立节点)
+    total_connections = binary_adj.sum(axis=0) + binary_adj.sum(axis=1)
+    isolated_nodes = np.where(total_connections == 1)[0]  # ==1 因为只有自环
+    
+    if len(isolated_nodes) == 0:
+        print(f"   - 孤立节点: 无")
+    else:
+        print(f"   - 孤立节点: {isolated_nodes.tolist()}")
+    
+    print("\n" + "="*80)
 
 
-def save_adjacency_matrix_to_file(adj_matrix, filepath='adjacency_matrix.csv'):
-    """保存邻接矩阵到CSV文件"""
-    np.savetxt(filepath, adj_matrix, fmt='%.6f', delimiter=',')
-    print(f"\n✓ 邻接矩阵已保存到: {filepath}")
+def save_adjacency_matrix(adjacency_matrix, filepath='topk_adjacency_matrix.csv'):
+    """保存邻接矩阵为CSV文件"""
+    
+    print(f"\n💾 保存邻接矩阵...")
+    
+    np.savetxt(filepath, adjacency_matrix, delimiter=',', fmt='%.6f')
+    print(f"✓ 邻接矩阵已保存: {filepath}")
+    
+    # 同时保存二值版本
+    binary_adj = (adjacency_matrix != 0).astype(int)
+    binary_path = filepath.replace('.csv', '_binary.csv')
+    np.savetxt(binary_path, binary_adj, delimiter=',', fmt='%d')
+    print(f"✓ 二值邻接矩阵已保存: {binary_path}")
 
 
 if __name__ == '__main__':
     import argparse
     
-    parser = argparse.ArgumentParser(description='生成Top-K有向图邻接矩阵可视化')
+    parser = argparse.ArgumentParser(description='生成Top-K有向图邻接矩阵并可视化')
     parser.add_argument('--model_path', type=str,
                         default='pretrained/msl/best_01_07-154250.pt',
                         help='模型路径')
@@ -297,15 +313,11 @@ if __name__ == '__main__':
     parser.add_argument('--dim', type=int, default=64, help='嵌入维度')
     parser.add_argument('--input_dim', type=int, default=15, help='输入维度')
     parser.add_argument('--topk', type=int, default=20, help='K值')
-    parser.add_argument('--show_values', action='store_true',
-                        help='在热力图上显示数值(仅适用于小矩阵)')
-    parser.add_argument('--save_csv', action='store_true',
-                        help='保存邻接矩阵为CSV文件')
     
     args = parser.parse_args()
     
-    # 创建邻接矩阵
-    adj_matrix, topk_idx, topk_val = create_adjacency_matrix(
+    # 1. 创建邻接矩阵
+    adj_matrix, topk_idx, topk_val = create_topk_adjacency_matrix(
         model_path=args.model_path,
         node_num=args.node_num,
         dim=args.dim,
@@ -313,32 +325,22 @@ if __name__ == '__main__':
         topk=args.topk
     )
     
-    # 可视化
-    visualize_adjacency_matrix(
-        adj_matrix,
-        save_path='adjacency_matrix_heatmap.png',
-        show_values=args.show_values
-    )
+    # 2. 可视化
+    visualize_adjacency_matrix(adj_matrix)
+    visualize_binary_adjacency(adj_matrix)
     
-    # 对比可视化
-    visualize_adjacency_comparison(
-        adj_matrix,
-        save_path='adjacency_matrix_analysis.png'
-    )
+    # 3. 分析
+    analyze_adjacency_matrix(adj_matrix)
     
-    # 结构分析
-    analyze_adjacency_structure(adj_matrix)
-    
-    # 保存CSV
-    if args.save_csv:
-        save_adjacency_matrix_to_file(adj_matrix)
+    # 4. 保存
+    save_adjacency_matrix(adj_matrix)
     
     print("\n" + "="*80)
-    print("✓ 所有可视化和分析完成!")
+    print("✓ 所有任务完成!")
     print("="*80)
     print("\n生成的文件:")
-    print("  1. adjacency_matrix_heatmap.png - 邻接矩阵热力图")
-    print("  2. adjacency_matrix_analysis.png - 多视图分析")
-    if args.save_csv:
-        print("  3. adjacency_matrix.csv - 邻接矩阵CSV文件")
+    print("   - topk_adjacency_matrix.png (邻接矩阵热力图)")
+    print("   - topk_adjacency_binary.png (二值邻接矩阵)")
+    print("   - topk_adjacency_matrix.csv (邻接矩阵CSV)")
+    print("   - topk_adjacency_matrix_binary.csv (二值邻接矩阵CSV)")
     print("="*80)
