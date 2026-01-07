@@ -131,10 +131,12 @@ if __name__ == '__main__':
     from util.env import get_device
     
     # === 修改这里的参数 ===
-    MODEL_PATH = 'checkpoints/swat_best.pt'  # 你的模型权重路径
-    NODE_NUM = 27  # 节点数量
-    DIM = 64  # 嵌入维度
-    INPUT_DIM = 10  # 输入特征维度
+    MODEL_PATH = 'pretrained/msl/best_01|07-15:42:50.pt'  # 使用通配符
+    NODE_NUM = 27
+    DIM = 64
+# =====================
+
+    INPUT_DIM = 15  # 输入特征维度
     TOPK = 20  # TopK参数
     # =====================
     
@@ -168,3 +170,4 @@ if __name__ == '__main__':
     else:
         print(f"❌ 模型文件不存在: {MODEL_PATH}")
         print("请修改脚本中的 MODEL_PATH 变量")
+
