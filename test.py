@@ -175,7 +175,3 @@ def test(model, dataloader):
     # 结果格式: [预测值列表, 真实值列表, 标签列表]
     # 每个列表的shape: [total_samples, node_num]
     return avg_loss, [test_predicted_list, test_ground_list, test_labels_list]
-
-
-
-

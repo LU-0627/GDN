@@ -49,24 +49,26 @@ class GraphLayer(MessagePassing):  # 定义图层类，继承自MessagePassing�
         zeros(self.bias)  # 使用零值初始化偏置参数
 
 
-    def forward(self, x, edge_index, embedding, return_attention_weights=False):  # 前向传播方法
-        """"""
+    '''   向前传播'''
+    def forward(self, x, edge_index, embedding, return_attention_weights=False):
+        # 1.线性变换
         if torch.is_tensor(x):  # 如果输入x是张量
             x = self.lin(x)  # 对x应用线性变换
             x = (x, x)  # 将x转换为元组形式
         else:  # 如果输入x是元组
             x = (self.lin(x[0]), self.lin(x[1]))  # 对元组中的每个元素应用线性变换
 
+        # 2. 图结构处理：移除并重新添加自环，确保节点能关注到自身
         edge_index, _ = remove_self_loops(edge_index)  # 移除边索引中的自环
         edge_index, _ = add_self_loops(edge_index,  # 添加自环到边索引
                                        num_nodes=x[1].size(self.node_dim))  # 根据节点数量添加自环
 
+        # 3. 开启消息传递流程
         out = self.propagate(edge_index, x=x, embedding=embedding, edges=edge_index,  # 通过边索引传播消息
                              return_attention_weights=return_attention_weights)  # 传播时可选择返回注意力权重
 
 
-        # message 已经返回 [N, heads * out_channels] 形状的张量
-        # 不再需要 view 或 mean 操作
+        # 4. 后处理
         if not self.concat:  # 如果不拼接多头结果
             # 如果不拼接，对每个head取平均
             out = out.view(-1, self.heads, self.out_channels).mean(dim=1)  # 将输出重新整形并沿头维度取平均
@@ -80,7 +82,8 @@ class GraphLayer(MessagePassing):  # 定义图层类，继承自MessagePassing�
         else:  # 否则
             return out  # 只返回输出
 
-    def message(self, x_i, x_j, edge_index_i, size_i,  # 消息传递方法，定义如何沿边传递消息
+    # 消息传递方法，定义如何沿边传递消息
+    def message(self, x_i, x_j, edge_index_i, size_i,  
                 embedding,  # 节点嵌入
                 edges,  # 边索引
                 return_attention_weights):  # 是否返回注意力权重
