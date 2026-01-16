@@ -286,7 +286,7 @@ class Main():  # 定义主类，封装整个程序的主要功能
         
         if self.datestr is None:      # 如果日期字符串为空
             now = datetime.now()      # 获取当前时间
-            self.datestr = now.strftime('%m|%d-%H:%M:%S')  # 格式化时间为字符串
+            self.datestr = now.strftime('%m|%d-%H-%M-%S')  # 格式化时间为字符串(Windows兼容)
         datestr = self.datestr          
 
         paths = [  # 定义路径列表
