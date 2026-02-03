@@ -180,16 +180,18 @@ class GDN(nn.Module):
         # 使用Kaiming方法初始化嵌入权重
         nn.init.kaiming_uniform_(self.embedding.weight, a=math.sqrt(5))
 
-    def forward(self, data, org_edge_index):
+    def forward(self, data, org_edge_index=None, return_embeddings=False):
         """
         前向传播
 
         Args:
             data: 输入数据 [batch_size, node_num, feature_dim]
             org_edge_index: 原始边索引
+            return_embeddings: 是否返回嵌入向量
 
         Returns:
             out: 预测输出 [batch_size, node_num]
+            embeddings: 中间嵌入向量（如果return_embeddings=True）
         """
         # 获取日志器
         logger = get_logger()  # 获取日志器实例
@@ -218,6 +220,8 @@ class GDN(nn.Module):
             logger.log_forward_step("2. 展平输入", x, f"合并batch和node维度")  # 记录展平操作
 
         gcn_outs = []  # 初始化GNN输出列表
+        embeddings_dict = {}  # 存储嵌入向量
+        
         for i, edge_index in enumerate(edge_index_sets):  # 遍历边索引集合
             edge_num = edge_index.shape[1]  # 获取边数量
             cache_edge_index = self.cache_edge_index_sets[i]  # 获取缓存的边索引
@@ -233,6 +237,9 @@ class GDN(nn.Module):
 
             # 获取节点嵌入
             all_embeddings = self.embedding(torch.arange(node_num).to(device))  # 获取所有节点嵌入
+            
+            # 保存节点嵌入
+            embeddings_dict['node_embedding'] = all_embeddings
 
             if should_log:  # 如果需要记录日志
                 logger.log_forward_step("3. 节点嵌入", all_embeddings)  # 记录节点嵌入信息
@@ -324,4 +331,7 @@ class GDN(nn.Module):
         if should_log:  # 如果需要记录日志
             logger.log_forward_step("11. 最终输出", out)  # 记录最终输出
 
+        if return_embeddings:
+            return out, x.view(batch_num, node_num, -1), embeddings_dict
+        
         return out  # 返回最终输出
