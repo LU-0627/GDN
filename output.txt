@@ -1,0 +1,51 @@
+F:\GDN\GDN\models\GDN.py:162: UserWarning: The use of `x.T` on tensors of dimension other than 2 to reverse their shape is deprecated and it will throw an error in a future release. Consider `x.mT` to transpose batches of matrices or `x.permute(*torch.arange(x.ndim - 1, -1, -1))` to reverse the dimensions of a tensor. (Triggered internally at ..\aten\src\ATen\native\TensorShape.cpp:3618.)
+  gated_i = torch.arange(0, node_num).T.unsqueeze(1).repeat(1, topk_num).flatten().to(device).unsqueeze(0)
+DEBUG: node_num=51, topk_num=20
+Traceback (most recent call last):
+  File "F:\GDN\GDN\main.py", line 256, in <module>
+    main.run()
+  File "F:\GDN\GDN\main.py", line 108, in run
+    self.train_log = train(self.model, model_save_path, 
+  File "F:\GDN\GDN\train.py", line 69, in train
+    out = model(x, edge_index).float().to(device)
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch\nn\modules\module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch\nn\modules\module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "F:\GDN\GDN\models\GDN.py", line 167, in forward
+    gcn_out = self.gnn_layers[i](x, batch_gated_edge_index, node_num=node_num*batch_num, embedding=all_embeddings)
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch\nn\modules\module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch\nn\modules\module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "F:\GDN\GDN\models\GDN.py", line 73, in forward
+    out, (new_edge_index, att_weight) = self.gnn(x, edge_index, embedding, return_attention_weights=True)
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch\nn\modules\module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch\nn\modules\module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "F:\GDN\GDN\models\graph_layer.py", line 65, in forward
+    out = self.propagate(edge_index, x=x, embedding=embedding, edges=edge_index,
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch_geometric\nn\conv\message_passing.py", line 480, in propagate
+    out = self.aggregate(out, **aggr_kwargs)
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch_geometric\nn\conv\message_passing.py", line 604, in aggregate
+    return self.aggr_module(inputs, index, ptr=ptr, dim_size=dim_size,
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch_geometric\experimental.py", line 115, in wrapper
+    return func(*args, **kwargs)
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch_geometric\nn\aggr\base.py", line 133, in __call__
+    raise e
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch_geometric\nn\aggr\base.py", line 125, in __call__
+    return super().__call__(x, index=index, ptr=ptr, dim_size=dim_size,
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch\nn\modules\module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch\nn\modules\module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch_geometric\nn\aggr\basic.py", line 22, in forward
+    return self.reduce(x, index, ptr, dim_size, dim, reduce='sum')
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch_geometric\nn\aggr\base.py", line 176, in reduce
+    return scatter(x, index, dim, dim_size, reduce)
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch_geometric\utils\scatter.py", line 69, in scatter
+    index = broadcast(index, src, dim)
+  File "D:\Anaconda_envs\envs\GDN\lib\site-packages\torch_geometric\utils\scatter.py", line 163, in broadcast
+    return src.view(size).expand_as(ref)
+RuntimeError: The expanded size of the tensor (1) must match the existing size (130560) at non-singleton dimension 1.  Target sizes: [130560, 1, 64].  Tensor sizes: [1, 130560, 1]
