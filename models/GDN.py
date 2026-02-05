@@ -80,7 +80,7 @@ class GNNLayer(nn.Module):
 
 
 class GDN(nn.Module):
-    def __init__(self, edge_index_sets, node_num, dim=64, out_layer_inter_dim=256, input_dim=10, out_layer_num=1, topk=20):
+    def __init__(self, edge_index_sets, node_num, dim=64, out_layer_inter_dim=256, input_dim=10, out_layer_num=1, topk=20, graph_type='similarity'):
 
         super(GDN, self).__init__()
 
@@ -105,6 +105,7 @@ class GDN(nn.Module):
         self.node_embedding = None
         self.topk = topk
         self.learned_graph = None
+        self.graph_type = graph_type
 
         self.out_layer = OutLayer(dim*edge_set_num, node_num, out_layer_num, inter_num = out_layer_inter_dim)
 
@@ -131,42 +132,106 @@ class GDN(nn.Module):
 
 
         gcn_outs = []
-        for i, edge_index in enumerate(edge_index_sets):
-            edge_num = edge_index.shape[1]
-            cache_edge_index = self.cache_edge_index_sets[i]
+        # 只使用第一个edge_index，因为我们要使用学习到的图结构
+        edge_index = edge_index_sets[0]
+        edge_num = edge_index.shape[1]
+        cache_edge_index = self.cache_edge_index_sets[0]
 
-            if cache_edge_index is None or cache_edge_index.shape[1] != edge_num*batch_num:
-                self.cache_edge_index_sets[i] = get_batch_edge_index(edge_index, batch_num, node_num).to(device)
-            
-            batch_edge_index = self.cache_edge_index_sets[i]
-            
-            all_embeddings = self.embedding(torch.arange(node_num).to(device))
+        if cache_edge_index is None or cache_edge_index.shape[1] != edge_num*batch_num:
+            self.cache_edge_index_sets[0] = get_batch_edge_index(edge_index, batch_num, node_num).to(device)
+        
+        batch_edge_index = self.cache_edge_index_sets[0]
+        
+        all_embeddings = self.embedding(torch.arange(node_num).to(device))
 
-            weights_arr = all_embeddings.detach().clone()
-            all_embeddings = all_embeddings.repeat(batch_num, 1)
+        weights_arr = all_embeddings.detach().clone()
+        all_embeddings = all_embeddings.repeat(batch_num, 1)
 
-            weights = weights_arr.view(node_num, -1)
+        weights = weights_arr.view(node_num, -1)
 
+        if self.graph_type == 'similarity':
+            # 相似性构图 (原始方法)
             cos_ji_mat = torch.matmul(weights, weights.T)
             normed_mat = torch.matmul(weights.norm(dim=-1).view(-1,1), weights.norm(dim=-1).view(1,-1))
             cos_ji_mat = cos_ji_mat / normed_mat
 
             dim = weights.shape[-1]
-            topk_num = self.topk
+            # 确保topk_num不超过节点数-1
+            topk_num = min(self.topk, node_num - 1)
 
             topk_indices_ji = torch.topk(cos_ji_mat, topk_num, dim=-1)[1]
 
             self.learned_graph = topk_indices_ji
 
-            gated_i = torch.arange(0, node_num).T.unsqueeze(1).repeat(1, topk_num).flatten().to(device).unsqueeze(0)
+            gated_i = torch.arange(0, node_num).unsqueeze(1).repeat(1, topk_num).flatten().to(device).unsqueeze(0)
             gated_j = topk_indices_ji.flatten().unsqueeze(0)
             gated_edge_index = torch.cat((gated_j, gated_i), dim=0)
 
-            batch_gated_edge_index = get_batch_edge_index(gated_edge_index, batch_num, node_num).to(device)
-            gcn_out = self.gnn_layers[i](x, batch_gated_edge_index, node_num=node_num*batch_num, embedding=all_embeddings)
+        elif self.graph_type == 'causal':
+                # 因果构图
+                # 使用数据的时间相关性来构建因果图
+                # 计算节点之间的相关性
+                data_reshaped = data.view(batch_num, node_num, -1)
+                # 计算每个节点的均值，得到形状为 (node_num, all_feature) 的张量
+                node_means = data_reshaped.mean(dim=0)
+                # 计算节点之间的相关性矩阵，形状为 (node_num, node_num)
+                # 使用向量化操作替代双重循环，提高计算效率
+                node_means_centered = node_means - node_means.mean(dim=1, keepdim=True)
+                cov_mat = torch.matmul(node_means_centered, node_means_centered.T)
+                std_mat = torch.sqrt(torch.matmul(node_means_centered.var(dim=1, keepdim=True), node_means_centered.var(dim=1, keepdim=True).T))
+                corr_mat = cov_mat / (std_mat + 1e-8)
+                # 取上三角矩阵，因为因果关系是单向的
+                corr_mat = torch.triu(corr_mat, diagonal=1)
+                # 确保topk_num不超过节点数-1
+                topk_num = min(self.topk, node_num - 1)
+                topk_indices_ji = torch.topk(corr_mat, topk_num, dim=-1)[1]
 
-            
-            gcn_outs.append(gcn_out)
+                self.learned_graph = topk_indices_ji
+
+                gated_i = torch.arange(0, node_num).unsqueeze(1).repeat(1, topk_num).flatten().to(device).unsqueeze(0)
+                gated_j = topk_indices_ji.flatten().unsqueeze(0)
+                gated_edge_index = torch.cat((gated_j, gated_i), dim=0)
+
+        elif self.graph_type == 'sparse':
+            # 稀疏构图
+            # 随机选择topk个连接，但保持一定的稀疏性
+            # 确保topk_num不超过节点数-1
+            topk_num = min(self.topk, node_num - 1)
+            # 生成随机权重矩阵
+            rand_mat = torch.randn(node_num, node_num).to(device)
+            # 归一化
+            rand_mat = F.softmax(rand_mat, dim=-1)
+            # 选择topk
+            topk_indices_ji = torch.topk(rand_mat, topk_num, dim=-1)[1]
+
+            self.learned_graph = topk_indices_ji
+
+            gated_i = torch.arange(0, node_num).unsqueeze(1).repeat(1, topk_num).flatten().to(device).unsqueeze(0)
+            gated_j = topk_indices_ji.flatten().unsqueeze(0)
+            gated_edge_index = torch.cat((gated_j, gated_i), dim=0)
+
+        else:
+            # 默认使用相似性构图
+            cos_ji_mat = torch.matmul(weights, weights.T)
+            normed_mat = torch.matmul(weights.norm(dim=-1).view(-1,1), weights.norm(dim=-1).view(1,-1))
+            cos_ji_mat = cos_ji_mat / normed_mat
+
+            dim = weights.shape[-1]
+            # 确保topk_num不超过节点数-1
+            topk_num = min(self.topk, node_num - 1)
+
+            topk_indices_ji = torch.topk(cos_ji_mat, topk_num, dim=-1)[1]
+
+            self.learned_graph = topk_indices_ji
+
+            gated_i = torch.arange(0, node_num).unsqueeze(1).repeat(1, topk_num).flatten().to(device).unsqueeze(0)
+            gated_j = topk_indices_ji.flatten().unsqueeze(0)
+            gated_edge_index = torch.cat((gated_j, gated_i), dim=0)
+
+        batch_gated_edge_index = get_batch_edge_index(gated_edge_index, batch_num, node_num).to(device)
+        gcn_out = self.gnn_layers[0](x, batch_gated_edge_index, node_num=node_num*batch_num, embedding=all_embeddings)
+
+        gcn_outs.append(gcn_out)
 
         x = torch.cat(gcn_outs, dim=1)
         x = x.view(batch_num, node_num, -1)

@@ -93,7 +93,8 @@ class Main():
                 input_dim=train_config['slide_win'],
                 out_layer_num=train_config['out_layer_num'],
                 out_layer_inter_dim=train_config['out_layer_inter_dim'],
-                topk=train_config['topk']
+                topk=train_config['topk'],
+                graph_type=train_config['graph_type']
             ).to(self.device)
 
 
@@ -215,6 +216,7 @@ if __name__ == "__main__":
     parser.add_argument('-topk', help='topk num', type = int, default=20)
     parser.add_argument('-report', help='best / val', type = str, default='best')
     parser.add_argument('-load_model_path', help='trained model path', type = str, default='')
+    parser.add_argument('-graph_type', help='graph type: similarity, causal, sparse', type = str, default='similarity')
 
     args = parser.parse_args()
 
@@ -241,6 +243,7 @@ if __name__ == "__main__":
         'decay': args.decay,
         'val_ratio': args.val_ratio,
         'topk': args.topk,
+        'graph_type': args.graph_type,
     }
 
     env_config={
