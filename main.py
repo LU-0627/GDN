@@ -180,7 +180,7 @@ class Main():
         
         if self.datestr is None:
             now = datetime.now()
-            self.datestr = now.strftime('%m|%d-%H:%M:%S')
+            self.datestr = now.strftime('%m-%d-%H-%M-%S')
         datestr = self.datestr          
 
         paths = [

@@ -1,42 +1,47 @@
 # GDN
 
-Code implementation for : [Graph Neural Network-Based Anomaly Detection in Multivariate Time Series(AAAI'21)](https://arxiv.org/pdf/2106.06947.pdf)
+代码实现：[Graph Neural Network-Based Anomaly Detection in Multivariate Time Series(AAAI'21)](https://arxiv.org/pdf/2106.06947.pdf)
 
 
-# Installation
-### Requirements
+# 安装
+### 环境要求
 * Python >= 3.6
 * cuda == 10.2
 * [Pytorch==1.5.1](https://pytorch.org/)
 * [PyG: torch-geometric==1.5.0](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html)
 
-### Install packages
-```
-    # run after installing correct Pytorch package
-    bash install.sh
-```
-
-### Quick Start
-Run to check if the environment is ready
-```
-    bash run.sh cpu msl
-    # or with gpu
-    bash run.sh <gpu_id> msl    # e.g. bash run.sh 1 msl
+### 安装包
+```bash
+    pip install -r requirements.txt
 ```
 
+### 快速开始
+运行以下命令检查环境是否准备就绪
+    # 在 CPU 上运行
+    python main.py -dataset msl -save_path_pattern msl -slide_stride 1 -slide_win 5 -batch 32 -epoch 30 -comment msl -random_seed 5 -decay 0 -dim 64 -out_layer_num 1 -out_layer_inter_dim 128 -val_ratio 0.2 -report best -topk 5 -device cpu
 
-# Usage
-We use part of msl dataset(refer to [telemanom](https://github.com/khundman/telemanom)) as demo example. 
+    # 在 GPU 上运行 (例如 GPU 0)
+    # Linux (设置 CUDA_VISIBLE_DEVICES 环境变量): 
+    # CUDA_VISIBLE_DEVICES=0 python main.py ...
+    
+    # Windows (如果需要，在运行前通过 set 命令设置，或依赖内部设备选择（如果支持）):
+    # set CUDA_VISIBLE_DEVICES=0
+    # python main.py ...
 
-## Data Preparation
+
+
+# 使用方法
+我们使用部分 msl 数据集(参考 [telemanom](https://github.com/khundman/telemanom)) 作为演示示例。
+
+## 数据准备
 ```
-# put your dataset under data/ directory with the same structure shown in the data/msl/
+# 将你的数据集放在 data/ 目录下，结构与 data/msl/ 相同
 
 data
  |-msl
- | |-list.txt    # the feature names, one feature per line
- | |-train.csv   # training data
- | |-test.csv    # test data
+ | |-list.txt    # 特征名称，每行一个特征
+ | |-train.csv   # 训练数据
+ | |-test.csv    # 测试数据
  |-your_dataset
  | |-list.txt
  | |-train.csv
@@ -45,28 +50,24 @@ data
 
 ```
 
-### Notices:
-* The first column in .csv will be regarded as index column. 
-* The column sequence in .csv don't need to match the sequence in list.txt, we will rearrange the data columns according to the sequence in list.txt.
-* test.csv should have a column named "attack" which contains ground truth label(0/1) of being attacked or not(0: normal, 1: attacked)
+### 注意事项:
+* .csv 中的第一列将被视为索引列。
+* .csv 中的列顺序不需要与 list.txt 中的顺序匹配，我们将根据 list.txt 中的顺序重新排列数据列。
+* test.csv 应该有一个名为 "attack" 的列，其中包含被攻击或未被攻击的真实标签(0/1) (0: 正常, 1: 被攻击)
 
-## Run
+## 运行
+```bash
+    python main.py -dataset <dataset> -save_path_pattern <dataset> -slide_stride 1 -slide_win 5 -batch 32 -epoch 30 -comment <dataset> -random_seed 5 -decay 0 -dim 64 -out_layer_num 1 -out_layer_inter_dim 128 -val_ratio 0.2 -report best -topk 5
 ```
-    # using gpu
-    bash run.sh <gpu_id> <dataset>
+你可以在上面的命令中更改运行参数。
 
-    # or using cpu
-    bash run.sh cpu <dataset>
-```
-You can change running parameters in the run.sh.
-
-# Others
-SWaT and WADI datasets can be requested from [iTrust](https://itrust.sutd.edu.sg/)
+# 其他
+SWaT 和 WADI 数据集可以从 [iTrust](https://itrust.sutd.edu.sg/) 申请。
 
 
-# Citation
-If you find this repo or our work useful for your research, please consider citing the paper
-```
+# 引用
+如果你发现这个仓库或我们的工作对你的研究有用，请考虑引用该论文
+```bibtex
 @inproceedings{deng2021graph,
   title={Graph neural network-based anomaly detection in multivariate time series},
   author={Deng, Ailin and Hooi, Bryan},
