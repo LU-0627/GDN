@@ -103,7 +103,8 @@ class Main():
         if len(self.env_config['load_model_path']) > 0:
             model_save_path = self.env_config['load_model_path']
         else:
-            model_save_path = self.get_save_path()[0]
+            save_paths, base_dir = self.get_save_path()
+            model_save_path = save_paths[0]
 
             self.train_log = train(self.model, model_save_path, 
                 config = train_config,
@@ -113,7 +114,8 @@ class Main():
                 test_dataloader=self.test_dataloader,
                 test_dataset=self.test_dataset,
                 train_dataset=self.train_dataset,
-                dataset_name=self.env_config['dataset']
+                dataset_name=self.env_config['dataset'],
+                log_dir=base_dir
             )
         
         # test            
@@ -176,23 +178,25 @@ class Main():
 
     def get_save_path(self, feature_name=''):
 
-        dir_path = self.env_config['save_path']
+        dataset_name = self.env_config['dataset']
         
         if self.datestr is None:
             now = datetime.now()
-            self.datestr = now.strftime('%m-%d-%H-%M-%S')
+            self.datestr = now.strftime('%Y%m%d_%H%M%S')
         datestr = self.datestr          
 
+        base_dir = f'./output/{dataset_name}/{datestr}'
+        
         paths = [
-            f'./pretrained/{dir_path}/best_{datestr}.pt',
-            f'./results/{dir_path}/{datestr}.csv',
+            f'{base_dir}/model.pt',
+            f'{base_dir}/results.csv',
         ]
 
         for path in paths:
             dirname = os.path.dirname(path)
             Path(dirname).mkdir(parents=True, exist_ok=True)
 
-        return paths
+        return paths, base_dir
 
 if __name__ == "__main__":
 
